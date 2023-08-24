@@ -1,3 +1,5 @@
+# First manually edit WANDB_ENTITY AND WANDB_API_KEY in robomimic/macros.py
+
 # Mujoco Setup
 wget https://mujoco.org/download/mujoco210-linux-x86_64.tar.gz -P ~/.mujoco/
 tar -xf ~/.mujoco/mujoco210-linux-x86_64.tar.gz 
