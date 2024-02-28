@@ -214,10 +214,10 @@ def create_env_from_metadata(
         env_name = env_meta["env_name"]
     env_type = get_env_type(env_meta=env_meta)
     env_kwargs = env_meta["env_kwargs"]
+    env_kwargs["env_name"] = env_name
 
     env = create_env(
         env_type=env_type,
-        env_name=env_name,  
         render=render, 
         render_offscreen=render_offscreen, 
         use_image_obs=use_image_obs, 
@@ -284,7 +284,7 @@ def wrap_env_from_config(env, config):
     Wraps environment using the provided Config object to determine which wrappers
     to use (if any).
     """
-    if ("frame_stack" in config.train) and (config.train.frame_stack > 1):
+    if config.train.frame_stack > 1:
         from robomimic.envs.wrappers import FrameStackWrapper
         env = FrameStackWrapper(env, num_frames=config.train.frame_stack)
 
