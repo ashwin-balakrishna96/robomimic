@@ -40,7 +40,8 @@ def algo_config_to_class(algo_config):
     vae_enabled = ("vae" in algo_config and algo_config.vae.enabled)
 
     rnn_enabled = algo_config.rnn.enabled
-    transformer_enabled = algo_config.transformer.enabled
+    # support legacy configs that do not have "transformer" item
+    transformer_enabled = ("transformer" in algo_config) and algo_config.transformer.enabled
 
     if gaussian_enabled:
         if rnn_enabled:
@@ -207,7 +208,6 @@ class BC(PolicyAlgo):
             net=self.nets["policy"],
             optim=self.optimizers["policy"],
             loss=losses["action_loss"],
-            max_grad_norm=self.global_config.train.max_grad_norm,
         )
         info["policy_grad_norms"] = policy_grad_norms
         return info
@@ -684,14 +684,13 @@ class BC_Transformer(BC):
         assert self.algo_config.transformer.enabled
 
         self.nets = nn.ModuleDict()
-        self.nets["policy"] = torch.nn.parallel.DataParallel(
-                PolicyNets.TransformerActorNetwork(
-                    obs_shapes=self.obs_shapes,
-                    goal_shapes=self.goal_shapes,
-                    ac_dim=self.ac_dim,
-                    encoder_kwargs=ObsUtils.obs_encoder_kwargs_from_config(self.obs_config.encoder),
-                    **BaseNets.transformer_args_from_config(self.algo_config.transformer),
-                ), device_ids=list(range(0,torch.cuda.device_count())))
+        self.nets["policy"] = PolicyNets.TransformerActorNetwork(
+            obs_shapes=self.obs_shapes,
+            goal_shapes=self.goal_shapes,
+            ac_dim=self.ac_dim,
+            encoder_kwargs=ObsUtils.obs_encoder_kwargs_from_config(self.obs_config.encoder),
+            **BaseNets.transformer_args_from_config(self.algo_config.transformer),
+        )
         self._set_params_from_config()
         self.nets = self.nets.float().to(self.device)
         
@@ -702,9 +701,6 @@ class BC_Transformer(BC):
         """
         self.context_length = self.algo_config.transformer.context_length
         self.supervise_all_steps = self.algo_config.transformer.supervise_all_steps
-        self.pred_future_acs = self.algo_config.transformer.pred_future_acs
-        if self.pred_future_acs:
-            assert self.supervise_all_steps is True
 
     def process_batch_for_training(self, batch):
         """
@@ -724,17 +720,10 @@ class BC_Transformer(BC):
 
         if self.supervise_all_steps:
             # supervision on entire sequence (instead of just current timestep)
-            if self.pred_future_acs:
-                ac_start = h - 1
-            else:
-                ac_start = 0
-            input_batch["actions"] = batch["actions"][:, ac_start:ac_start+h, :]
+            input_batch["actions"] = batch["actions"][:, :h, :]
         else:
             # just use current timestep
             input_batch["actions"] = batch["actions"][:, h-1, :]
-
-        if self.pred_future_acs:
-            assert input_batch["actions"].shape[1] == h
 
         input_batch = TensorUtils.to_device(TensorUtils.to_float(input_batch), self.device)
         return input_batch
@@ -777,19 +766,8 @@ class BC_Transformer(BC):
         """
         assert not self.nets.training
 
-        output = self.nets["policy"](obs_dict=obs_dict, actions=None, goal_dict=goal_dict)
+        return self.nets["policy"](obs_dict, actions=None, goal_dict=goal_dict)[:, -1, :]
 
-        if self.supervise_all_steps:
-            if self.algo_config.transformer.pred_future_acs:
-                output = output[:, 0, :]
-            else:
-                output = output[:, -1, :]
-        else:
-            output = output[:, -1, :]
-
-        return output
-
-        
 
 class BC_Transformer_GMM(BC_Transformer):
     """

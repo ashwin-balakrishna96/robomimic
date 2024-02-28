@@ -128,8 +128,6 @@ class DataLogger(object):
                         stat_k_name = '{}-{}'.format(k, stat_k)
                         self._tb_logger.add_scalar(stat_k_name, stat_v, epoch)
             elif data_type == 'image':
-                if len(v.shape) == 3:
-                    v = v[None, ...]
                 self._tb_logger.add_images(k, img_tensor=v, global_step=epoch, dataformats="NHWC")
 
         if self._wandb_logger is not None:
@@ -139,10 +137,9 @@ class DataLogger(object):
                     if log_stats:
                         stats = self.get_stats(k)
                         for (stat_k, stat_v) in stats.items():
-                            self._wandb_logger.log({stat_k: stat_v}, step=epoch)
+                            self._wandb_logger.log({"{}/{}".format(k, stat_k): stat_v}, step=epoch)
                 elif data_type == 'image':
-                    import wandb
-                    self._wandb_logger.log({k: wandb.Image(v)}, step=epoch)
+                    raise NotImplementedError
             except Exception as e:
                 log_warning("wandb logging: {}".format(e))
 
