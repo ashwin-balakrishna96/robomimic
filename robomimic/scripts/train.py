@@ -106,12 +106,8 @@ def train(config, device):
          }
 
         dataset_names = config.train.dataset_names
-        filter_functions = [[ModuleSpec.create(
-                                "robomimic.utils.rlds_utils:filter_success"
-                                )] if d_name == "droid" else [] \
-                            for d_name in dataset_names]
         dataset_kwargs_list = [
-            {"name": d_name, "filter_functions": f_functions, **BASE_DATASET_KWARGS} for d_name, f_functions in zip(dataset_names, filter_functions)
+            {"name": d_name, **BASE_DATASET_KWARGS} for d_name in dataset_names
         ]
 
         dataset = make_interleaved_dataset(
