@@ -46,9 +46,7 @@ from robomimic.algo import algo_factory, RolloutPolicy
 from robomimic.utils.log_utils import PrintLogger, DataLogger, flush_warnings
 from robomimic.utils.rlds_utils import droid_dataset_transform, robomimic_transform, DROID_TO_RLDS_OBS_KEY_MAP, DROID_TO_RLDS_LOW_DIM_OBS_KEY_MAP, TorchRLDSDataset
 
-from octo.data.dataset import make_dataset_from_rlds, make_interleaved_dataset
-from octo.data.utils.data_utils import combine_dataset_statistics
-from octo.utils.spec import ModuleSpec
+from octo.data.dataset import make_interleaved_dataset
 
 
 def train(config, device):
@@ -100,7 +98,7 @@ def train(config, device):
                 "image_obs_keys": {"primary": DROID_TO_RLDS_OBS_KEY_MAP[obs_modalities[0]], "secondary": DROID_TO_RLDS_OBS_KEY_MAP[obs_modalities[1]]},
                 "state_obs_keys": [DROID_TO_RLDS_LOW_DIM_OBS_KEY_MAP[obs_key] for obs_key in config.observation.modalities.obs.low_dim],
                 "language_key": "language_instruction",
-                "norm_skip_keys":  ["proprio"],
+                "keys_to_normalize":  {"action": "action"},
                 "action_proprio_normalization_type": "bounds",
                 "absolute_action_mask": is_abs_action,
                 "action_normalization_mask": is_abs_action,
@@ -108,17 +106,9 @@ def train(config, device):
          }
 
         dataset_names = config.train.dataset_names
-        filter_functions = [[ModuleSpec.create(
-                                "robomimic.utils.rlds_utils:filter_success"
-                                )] if d_name == "droid" else [] \
-                            for d_name in dataset_names]
         dataset_kwargs_list = [
-            {"name": d_name, "filter_functions": f_functions, **BASE_DATASET_KWARGS} for d_name, f_functions in zip(dataset_names, filter_functions)
+            {"name": d_name, **BASE_DATASET_KWARGS} for d_name in dataset_names
         ]
-        # Compute combined normalization stats
-        combined_dataset_statistics = combine_dataset_statistics(
-            [make_dataset_from_rlds(**dataset_kwargs, train=True)[1] for dataset_kwargs in dataset_kwargs_list]
-        )
 
         dataset = make_interleaved_dataset(
             dataset_kwargs_list,
@@ -127,7 +117,7 @@ def train(config, device):
             shuffle_buffer_size=config.train.shuffle_buffer_size,
             batch_size=None,  # batching will be handled in PyTorch Dataloader object
             balance_weights=False,
-            dataset_statistics=combined_dataset_statistics,
+            do_combined_normalization=True,
             traj_transform_kwargs=dict(
                 # NOTE(Ashwin): window_size and future_action_window_size may break if 
                 # not using diffusion policy
