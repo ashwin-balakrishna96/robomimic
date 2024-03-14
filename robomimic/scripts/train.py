@@ -47,6 +47,7 @@ from robomimic.utils.log_utils import PrintLogger, DataLogger, flush_warnings
 from robomimic.utils.rlds_utils import droid_dataset_transform, robomimic_transform, DROID_TO_RLDS_OBS_KEY_MAP, DROID_TO_RLDS_LOW_DIM_OBS_KEY_MAP, TorchRLDSDataset
 
 from octo.data.dataset import make_interleaved_dataset
+from octo.utils.spec import ModuleSpec
 
 
 def train(config, device):
@@ -106,8 +107,12 @@ def train(config, device):
          }
 
         dataset_names = config.train.dataset_names
+        filter_functions = [[ModuleSpec.create(
+                                "robomimic.utils.rlds_utils:filter_success"
+                                )] if d_name == "droid" else [] \
+                            for d_name in dataset_names]
         dataset_kwargs_list = [
-            {"name": d_name, **BASE_DATASET_KWARGS} for d_name in dataset_names
+            {"name": d_name, "filter_functions": f_functions, **BASE_DATASET_KWARGS} for d_name, f_functions in zip(dataset_names, filter_functions)
         ]
 
         dataset = make_interleaved_dataset(
